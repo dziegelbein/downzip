@@ -1,6 +1,30 @@
 # DownZip
 [![Maintainability](https://api.codeclimate.com/v1/badges/862b0665619d30cd322e/maintainability)](https://codeclimate.com/github/robbederks/downzip/maintainability)[ ![Test Coverage](https://api.codeclimate.com/v1/badges/862b0665619d30cd322e/test_coverage)](https://codeclimate.com/github/robbederks/downzip/test_coverage)
 
+---
+
+** IMPORTANT **
+
+This package is based on a fork of v2.0.1 of https://www.npmjs.com/package/downzip 
+
+It adds the ability to set the fetch init options on individual file downloads via a fourth 'options' parameter to the downzip method.
+
+For example, to set the Authorization header for each file download:
+
+```
+const downZip = new DownZip()
+const url = await downZip.downzip(
+      uuidv4(), // download id
+      'zipfile', // name of zip file
+      filesToZip, // array of files to add to zip
+      { fetchInit: () => ({ headers: { Authorization: `Bearer ${getAccessToken()}` } }) }
+    )
+```
+
+NOTE: fetchInit can be a simple object if its value never changes.
+
+---
+
 The `package.json` description says it all: "Library to enable client-side code to stream potentially large files into a zipped download"
 
 ## Features
