@@ -7,6 +7,8 @@ const TIMEOUT_MS = 5000
 const KEEPALIVE_INTERVAL_MS = 5000
 
 class DownZip {
+    #downzipFetchInitChannel = new BroadcastChannel('DOWNZIP_FETCH_INIT')
+
     constructor(){
         this.worker = null
     }
@@ -40,12 +42,26 @@ class DownZip {
         }, port ? [port] : undefined)
     }
 
-    // Files array is in the following format: [{name: '', downloadUrl: '', size: 0}, ...]
-    async downzip(id, name, files){
+    // Files array is in the following format: [{name: '', downloadUrl: '', size: 0[, doFetchInit: true|false]}, ...]
+    // Available options: 
+    //   fetchInit: A function returning the init object to be used with the fetch operation used for the download
+    async downzip(id, name, files, options = {}){
         // Check if worker got created in the constructor
         if(!this.worker){
             Utils.error("[DownZip] No service worker registered!")
             return
+        }
+
+        this.#downzipFetchInitChannel.onmessage = async (e) => {
+            if (e.data === 'REQUEST') {
+                let initObj = null
+                if (typeof options?.fetchInit === 'function') {
+                    initObj = await options.fetchInit()
+                } else if (typeof options?.fetchInit === 'object') {
+                    initObj = options.fetchInit
+                }
+                this.#downzipFetchInitChannel.postMessage(initObj)
+            }
         }
 
         return new Promise(((resolve, reject) => {

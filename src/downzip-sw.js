@@ -7,6 +7,20 @@ const Utils = new WorkerUtils('DownZipServiceWorker')
 // /////////// GLOBAL OBJECTS /////////// //
 const zipMap = {}
 
+// Create a channel for communicating fetch init parameters
+const fetchInitChannel = new BroadcastChannel('DOWNZIP_FETCH_INIT')
+
+const getFetchInit = async () => {
+    return await new Promise(resolve => {
+        fetchInitChannel.onmessage = e => {
+            resolve(e.data)
+        }
+
+        fetchInitChannel.postMessage('REQUEST')
+    })
+}
+
+
 // ////////// MESSAGE HANDLERS ////////// //
 const initialize = (data, ports) => {
     Utils.log(`Initialize called: ${JSON.stringify(data)}`)
@@ -35,6 +49,7 @@ const initialize = (data, ports) => {
 const tick = () => {
     Utils.log(`Tock`)
 }
+
 
 // /////////// EVENT HANDLERS /////////// //
 self.addEventListener('install', () => {
@@ -81,9 +96,11 @@ self.addEventListener('fetch', async (event) => {
             zipMap[id].zip.startFile(file.name)
 
             // Append all the downloaded data
-            try {
+            try {      
+                const fetchInit = await getFetchInit(file)
+
                 await new Promise((resolve, reject) => {
-                    fetch(file.downloadUrl).then(response => response.body).then(async (stream) => {
+                    fetch(file.downloadUrl, fetchInit).then(response => response.body).then(async (stream) => {
                         const reader = stream.getReader()
                         let doneReading = false
                         while (!doneReading) {
@@ -101,8 +118,8 @@ self.addEventListener('fetch', async (event) => {
                         }
                     }).catch((err) => {
                         reject(err)
-                    })
-                })
+                    })                        
+                })                 
             } catch (e) {
                 Utils.error(`Error while piping data into zip: ${e.toString()}`)
             }
