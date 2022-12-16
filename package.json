@@ -1,6 +1,6 @@
 {
   "name": "@dziegelbein/downzip",
-  "version": "2.1.1",
+  "version": "2.1.2",
   "description": "Library to enable client-side code to stream potentially large files into a zipped download",
   "main": "./dist/main.js",
   "scripts": {

@@ -1,9 +1,6 @@
-# DownZip
-[![Maintainability](https://api.codeclimate.com/v1/badges/862b0665619d30cd322e/maintainability)](https://codeclimate.com/github/robbederks/downzip/maintainability)[ ![Test Coverage](https://api.codeclimate.com/v1/badges/862b0665619d30cd322e/test_coverage)](https://codeclimate.com/github/robbederks/downzip/test_coverage)
-
 ---
 
-** IMPORTANT **
+**IMPORTANT**
 
 This package is based on a fork of v2.0.1 of https://www.npmjs.com/package/downzip 
 
@@ -24,6 +21,10 @@ const url = await downZip.downzip(
 NOTE: fetchInit can be a simple object if its value never changes.
 
 ---
+  
+  
+# DownZip
+[![Maintainability](https://api.codeclimate.com/v1/badges/862b0665619d30cd322e/maintainability)](https://codeclimate.com/github/robbederks/downzip/maintainability)[ ![Test Coverage](https://api.codeclimate.com/v1/badges/862b0665619d30cd322e/test_coverage)](https://codeclimate.com/github/robbederks/downzip/test_coverage)
 
 The `package.json` description says it all: "Library to enable client-side code to stream potentially large files into a zipped download"
 
