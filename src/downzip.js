@@ -42,7 +42,7 @@ class DownZip {
         }, port ? [port] : undefined)
     }
 
-    // Files array is in the following format: [{name: '', downloadUrl: '', size: 0[, doFetchInit: true|false]}, ...]
+    // Files array is in the following format: [{name: '', downloadUrl: '', size: 0}, ...]
     // Available options: 
     //   fetchInit: A function returning the init object to be used with the fetch operation used for the download
     async downzip(id, name, files, options = {}){
