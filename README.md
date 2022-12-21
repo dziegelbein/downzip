@@ -2,9 +2,13 @@
 
 **IMPORTANT**
 
-This package is based on a fork of v2.0.1 of https://www.npmjs.com/package/downzip 
+This package is based on a fork of v2.0.1 of https://www.npmjs.com/package/downzip
 
-It adds the ability to set the fetch init options on individual file downloads via a fourth 'options' parameter to the downzip method.
+It adds an optional fourth parameter to the downzip method. That parameter is an object that may contain any of the 
+following:
+- fetchInit: An async/sync function returning the init object to be used with the fetch operation used for the download
+- onProgress: A callback that takes a progress object of the form { id, file, progFile, progFileset, progTotal, done }
+- onError: A callback that takes an error object of the form { id, file, error }
 
 For example, to set the Authorization header for each file download:
 
@@ -21,8 +25,8 @@ const url = await downZip.downzip(
 NOTE: fetchInit can be a simple object if its value never changes.
 
 ---
-  
-  
+
+
 # DownZip
 [![Maintainability](https://api.codeclimate.com/v1/badges/862b0665619d30cd322e/maintainability)](https://codeclimate.com/github/robbederks/downzip/maintainability)[ ![Test Coverage](https://api.codeclimate.com/v1/badges/862b0665619d30cd322e/test_coverage)](https://codeclimate.com/github/robbederks/downzip/test_coverage)
 
@@ -83,7 +87,7 @@ const downloadUrl = await downZip.downzip(
 ```
 
 ## service-worker-loader options
-Can pass `mapScriptUrl` function to the `register` method. That function gets used by 
+Can pass `mapScriptUrl` function to the `register` method. That function gets used by
 service-worker-loader. [docs](https://github.com/mohsen1/service-worker-loader#registerserviceworkermapscripturl-scripturl-string--string-options-registrationoptions-promiseserviceworkerregistration)
 
 ```js

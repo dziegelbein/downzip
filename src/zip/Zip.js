@@ -17,6 +17,7 @@ class Zip {
         // Setup file record
         this.fileRecord = []
         this.finished = false
+        this.canceled = false
 
         // Setup byte counter
         this.byteCounterBig = BigInt(0)
@@ -28,6 +29,7 @@ class Zip {
                 this.outputController = controller
             },
             cancel: () => {
+                this.canceled = true
                 Utils.error('OutputStream has been canceled!')
             },
             read: () => {}
@@ -59,46 +61,51 @@ class Zip {
 
     // API
     startFile = (fileName) => {
-        if(!this.isWritingFile() && !this.finished) {
-            Utils.log(`Start file: ${fileName}`)
-            const date = new Date(Date.now())
-
-            // Add file to record
-            this.fileRecord = [
-                ...this.fileRecord,
-                {
-                    name: fileName,
-                    sizeBig: BigInt(0),
-                    crc: new Crc32(),
-                    done: false,
-                    date,
-                    headerOffsetBig: this.byteCounterBig
-                }
-            ]
-
-            // Generate Local File Header
-            const nameBuffer = new TextEncoder().encode(fileName)
-            const header = ZipUtils.createByteArray([
-                {data: 0x04034B50, size: 4},
-                {data: 0x002D, size: 2},
-                {data: 0x0808, size: 2},
-                {data: 0x0000, size: 2},
-                {data: ZipUtils.getTimeStruct(date), size: 2},
-                {data: ZipUtils.getDateStruct(date), size: 2},
-                {data: 0x00000000, size: 4},
-                {data: (this.zip64 ? 0xFFFFFFFF : 0x00000000), size: 4},
-                {data: (this.zip64 ? 0xFFFFFFFF : 0x00000000), size: 4},
-                {data: nameBuffer.length, size: 2},
-                {data: (this.zip64 ? 32 : 0), size: 2},
-                {data: nameBuffer},
-                {data: (this.zip64 ? this.getZip64ExtraField(BigInt(0), this.byteCounterBig) : [])}
-            ])
-
-            // Write header to output stream and add to byte counter
-            this.enqueue(header)
-            this.byteCounterBig += BigInt(header.length)
-        } else {
-            Utils.error("Tried adding file while adding other file or while zip has finished")
+        try {
+            if(!this.isWritingFile() && !this.finished) {
+                Utils.log(`Start file: ${fileName}`)
+                const date = new Date(Date.now())
+    
+                // Add file to record
+                this.fileRecord = [
+                    ...this.fileRecord,
+                    {
+                        name: fileName,
+                        sizeBig: BigInt(0),
+                        crc: new Crc32(),
+                        done: false,
+                        date,
+                        headerOffsetBig: this.byteCounterBig
+                    }
+                ]
+    
+                // Generate Local File Header
+                const nameBuffer = new TextEncoder().encode(fileName)
+                const header = ZipUtils.createByteArray([
+                    {data: 0x04034B50, size: 4},
+                    {data: 0x002D, size: 2},
+                    {data: 0x0808, size: 2},
+                    {data: 0x0000, size: 2},
+                    {data: ZipUtils.getTimeStruct(date), size: 2},
+                    {data: ZipUtils.getDateStruct(date), size: 2},
+                    {data: 0x00000000, size: 4},
+                    {data: (this.zip64 ? 0xFFFFFFFF : 0x00000000), size: 4},
+                    {data: (this.zip64 ? 0xFFFFFFFF : 0x00000000), size: 4},
+                    {data: nameBuffer.length, size: 2},
+                    {data: (this.zip64 ? 32 : 0), size: 2},
+                    {data: nameBuffer},
+                    {data: (this.zip64 ? this.getZip64ExtraField(BigInt(0), this.byteCounterBig) : [])}
+                ])
+    
+                // Write header to output stream and add to byte counter
+                this.enqueue(header)
+                this.byteCounterBig += BigInt(header.length)
+            } else {
+                throw new Error("Tried adding file while adding other file or while zip has finished")
+            }
+        } catch (e) {
+            Utils.error(e.message)
+            throw e
         }
     }
 
@@ -111,10 +118,11 @@ class Zip {
                 this.fileRecord[this.fileRecord.length - 1].crc.append(data)
                 this.fileRecord[this.fileRecord.length - 1].sizeBig += BigInt(data.length)
             } else {
-                Utils.error('Tried to append file data, but there is no open file!')
+                throw new Error('Tried to append file data, but there is no open file!')
             }
         } catch (e) {
-            Utils.error(e)
+            Utils.error(e.message)
+            throw e // Allow higher-level code to react to the error
         }
     }
 
@@ -132,10 +140,11 @@ class Zip {
                 this.byteCounterBig += BigInt(dataDescriptor.length)
                 this.fileRecord[this.fileRecord.length - 1].done = true
             } else {
-                Utils.error('Tried to end file, but there is no open file!')
+                throw new Error('Tried to end file, but there is no open file!')
             }
         } catch (e) {
-            Utils.error(e)
+            Utils.error(e.message)
+            throw e // Allow higher-level code to react to the error
         }
     }
 

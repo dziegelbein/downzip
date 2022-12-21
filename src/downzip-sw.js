@@ -7,8 +7,10 @@ const Utils = new WorkerUtils('DownZipServiceWorker')
 // /////////// GLOBAL OBJECTS /////////// //
 const zipMap = {}
 
-// Create a channel for communicating fetch init parameters
+// Create channels for communicating fetch init parameters, errors, etc.
 const fetchInitChannel = new BroadcastChannel('DOWNZIP_FETCH_INIT')
+const progressReportChannel = new BroadcastChannel('DOWNZIP_PROGRESS_REPORT')
+const errorReportChannel = new BroadcastChannel('DOWNZIP_ERROR_REPORT')
 
 const getFetchInit = async () => {
     return await new Promise(resolve => {
@@ -20,6 +22,13 @@ const getFetchInit = async () => {
     })
 }
 
+const reportProgress = (id, file, progFile, progFileset, progTotal, done) => {
+    progressReportChannel.postMessage({ id, file, progFile, progFileset, progTotal, done })
+}
+
+const reportError = (id, file, err) => {
+    errorReportChannel.postMessage({ id, file, err })
+}
 
 // ////////// MESSAGE HANDLERS ////////// //
 const initialize = (data, ports) => {
@@ -72,65 +81,87 @@ self.addEventListener('fetch', async (event) => {
         const id = lastPart.replace('download-', '')
         Utils.log(`Fetch called for download id: ${id}`)
 
+        // Setup progress tracking variables
+        let progFile = 0
+        let progFileset = 0
+        let file = zipMap[id].files?.[0]
+        let reader
+        const progTotal = zipMap[id].files.reduce((sum, f) => sum + parseInt(f.size, 10), 0)
+
         // Check if initialized
         if(!zipMap[id]){
             Utils.error(`No zip initialized for id: ${id}`)
             return
         }
 
-        // Respond with the zip outputStream
-        event.respondWith(new Response(
-            zipMap[id].zip.outputStream,
-            {headers: new Headers({
-                'Content-Type': 'application/octet-stream; charset=utf-8',
-                'Content-Disposition': `attachment; filename="${zipMap[id].name}.zip"`,
-                'Content-Length': zipMap[id].sizeBig  // This is an approximation, does not take into account the headers
-            })}
-        ))
+        try {
+            // Respond with the zip outputStream
+            event.respondWith(new Response(
+                zipMap[id].zip.outputStream,
+                {headers: new Headers({
+                    'Content-Type': 'application/octet-stream; charset=utf-8',
+                    'Content-Disposition': `attachment; filename="${zipMap[id].name}.zip"`,
+                    'Content-Length': zipMap[id].sizeBig  // This is an approximation, does not take into account the headers
+                })}
+            ))            
 
-        // Start feeding zip the downloads
-        for(let i=0; i<zipMap[id].files.length; i++){
-            const file = zipMap[id].files[i]
+            reportProgress(id, file, progFile, progFileset, progTotal, false)
 
-            // Start new file in the zip
-            zipMap[id].zip.startFile(file.name)
+            // Start feeding zip the downloads
+            for(let i=0; i<zipMap[id].files.length; i++){
+                reader = null
+                file = zipMap[id].files[i]
 
-            // Append all the downloaded data
-            try {      
-                const fetchInit = await getFetchInit(file)
+                // Start new file in the zip
+                zipMap[id].zip.startFile(file.name)
 
-                await new Promise((resolve, reject) => {
-                    fetch(file.downloadUrl, fetchInit).then(response => response.body).then(async (stream) => {
-                        const reader = stream.getReader()
-                        let doneReading = false
-                        while (!doneReading) {
-                            const chunk = await reader.read()
-                            const {done, value} = chunk
+                progFile = 0
 
-                            if (done) {
-                                // If this stream has finished, resolve and return
-                                resolve()
-                                doneReading = true
-                            } else {
-                                // If not, append data to the zip
-                                zipMap[id].zip.appendData(value)
-                            }
-                        }
-                    }).catch((err) => {
-                        reject(err)
-                    })                        
-                })                 
-            } catch (e) {
-                Utils.error(`Error while piping data into zip: ${e.toString()}`)
+                // Append all the downloaded data 
+                const fetchInit = await getFetchInit()
+
+                const response = await fetch(file.downloadUrl, fetchInit)
+
+                if (!response.ok) {
+                    reportError(id, file, new Error(`${response.status} ${response.statusText}`))
+                }
+
+                reader = response.body.getReader()
+                let doneReading = false
+                while (!doneReading) {
+                    const chunk = await reader.read()
+                    const {done, value} = chunk
+
+                    if (done) {
+                        // If this stream has finished, return
+                        doneReading = true
+                    } else {
+                        // If not, append data to the zip
+                        zipMap[id].zip.appendData(value)
+                        progFile += value.length 
+                        progFileset += value.length
+                        reportProgress(id, file, progFile, progFileset, progTotal, false)
+                    }
+                }  
+                
+                // End file
+                zipMap[id].zip.endFile()                    
             }
 
-            // End file
-            zipMap[id].zip.endFile()
+            // End zip
+            zipMap[id].zip.finish()    
+        } catch (e) {
+            if (reader) {
+                reader.cancel()
+            }
+            if (!zipMap[id]?.zip?.canceled) {
+                reportError(id, file, e)
+            }
+            Utils.error(`Error while piping data into zip: ${e.toString()}`)
+        } finally {
+            reportProgress(id, file, progFile, progFileset, progTotal, true)
+            Utils.log("Done with this zip!")
         }
-
-        // End zip
-        zipMap[id].zip.finish()
-        Utils.log("Done with this zip!")
     } else {
         Utils.log('Fetch called for a non-download. Doing nothing')
     }

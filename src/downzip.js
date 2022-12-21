@@ -7,7 +7,9 @@ const TIMEOUT_MS = 5000
 const KEEPALIVE_INTERVAL_MS = 5000
 
 class DownZip {
-    #downzipFetchInitChannel = new BroadcastChannel('DOWNZIP_FETCH_INIT')
+    #fetchInitChannel = new BroadcastChannel('DOWNZIP_FETCH_INIT')
+    #progressChannel = new BroadcastChannel('DOWNZIP_PROGRESS_REPORT')
+    #errorChannel = new BroadcastChannel('DOWNZIP_ERROR_REPORT')
 
     constructor(){
         this.worker = null
@@ -42,9 +44,11 @@ class DownZip {
         }, port ? [port] : undefined)
     }
 
-    // Files array is in the following format: [{name: '', downloadUrl: '', size: 0}, ...]
+    // Files array is in the following format: [{name: '', downloadUrl: '', size: 0, options = {}}, ...]
     // Available options: 
-    //   fetchInit: A function returning the init object to be used with the fetch operation used for the download
+    //   fetchInit: An async/sync function returning the init object to be used with the fetch operation used for the download
+    //   onProgress: A callback that takes a progress object of the form { id, file, progFile, progFileset, progTotal, done }
+    //   onError: A callback that takes an error object of the form { id, file, error }
     async downzip(id, name, files, options = {}){
         // Check if worker got created in the constructor
         if(!this.worker){
@@ -52,7 +56,7 @@ class DownZip {
             return
         }
 
-        this.#downzipFetchInitChannel.onmessage = async (e) => {
+        this.#fetchInitChannel.onmessage = async (e) => {
             if (e.data === 'REQUEST') {
                 let initObj = null
                 if (typeof options?.fetchInit === 'function') {
@@ -60,7 +64,19 @@ class DownZip {
                 } else if (typeof options?.fetchInit === 'object') {
                     initObj = options.fetchInit
                 }
-                this.#downzipFetchInitChannel.postMessage(initObj)
+                this.#fetchInitChannel.postMessage(initObj)
+            }
+        }
+
+        this.#progressChannel.onmessage = e => {
+            if (options?.onProgress && e.data.id === id) {
+                options.onProgress(e.data)
+            }
+        }
+
+        this.#errorChannel.onmessage = e => {
+            if (options?.onError && e.data.id === id) {
+                options.onError(e.data)
             }
         }
 
