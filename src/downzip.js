@@ -6,11 +6,47 @@ const SCOPE = 'downzip'
 const TIMEOUT_MS = 5000
 const KEEPALIVE_INTERVAL_MS = 5000
 
-class DownZip {
-    #fetchInitChannel = new BroadcastChannel('DOWNZIP_FETCH_INIT')
-    #progressChannel = new BroadcastChannel('DOWNZIP_PROGRESS_REPORT')
-    #errorChannel = new BroadcastChannel('DOWNZIP_ERROR_REPORT')
+class BC {
+    #msgChannel
+    #name
+    onmessage
 
+    constructor (channelName) {
+        this.#name = channelName
+        this.onmessage = null
+        this.#msgChannel = new MessageChannel()
+        this.#msgChannel.port1.onmessage = e => {
+            if (this.onmessage) {
+                this.onmessage(e)
+            }
+        }
+    }
+
+    postMessage (msg) {
+        this.#msgChannel.port1.postMessage(msg)
+    }
+
+    get name () {
+        return this.#name
+    }
+
+    get _port2 () {
+        return this.#msgChannel.port2
+    }
+}
+
+function createBroadcastChannel(name) {
+    try {
+        const bc = new BroadcastChannel(name)
+        console.log('downzip: Using BroadcastChannel')
+        return bc
+    } catch (err) {
+        console.log('downzip: Using MessageChannel')
+        return new BC(name)
+    }
+}
+
+class DownZip {
     constructor(){
         this.worker = null
     }
@@ -37,11 +73,11 @@ class DownZip {
     }
     
 
-    sendMessage(command, data, port){
+    sendMessage(command, data, comms){
         this.worker.postMessage({
             command,
             data
-        }, port ? [port] : undefined)
+        }, comms)
     }
 
     // Files array is in the following format: [{name: '', downloadUrl: '', size: 0, options = {}}, ...]
@@ -50,13 +86,17 @@ class DownZip {
     //   onProgress: A callback that takes a progress object of the form { id, file, progFile, progFileset, progTotal, done }
     //   onError: A callback that takes an error object of the form { id, file, error }
     async downzip(id, name, files, options = {}){
+        const fetchInitChannel = createBroadcastChannel('DOWNZIP_FETCH_INIT')
+        const progressChannel = createBroadcastChannel('DOWNZIP_PROGRESS_REPORT')
+        const errorChannel = createBroadcastChannel('DOWNZIP_ERROR_REPORT')
+
         // Check if worker got created in the constructor
         if(!this.worker){
             Utils.error("[DownZip] No service worker registered!")
             return
         }
 
-        this.#fetchInitChannel.onmessage = async (e) => {
+        fetchInitChannel.onmessage = async (e) => {
             if (e.data === 'REQUEST') {
                 let initObj = null
                 if (typeof options?.fetchInit === 'function') {
@@ -64,17 +104,18 @@ class DownZip {
                 } else if (typeof options?.fetchInit === 'object') {
                     initObj = options.fetchInit
                 }
-                this.#fetchInitChannel.postMessage(initObj)
+
+                fetchInitChannel.postMessage(initObj)
             }
         }
 
-        this.#progressChannel.onmessage = e => {
+        progressChannel.onmessage = e => {
             if (options?.onProgress && e.data.id === id) {
                 options.onProgress(e.data)
             }
         }
 
-        this.#errorChannel.onmessage = e => {
+        errorChannel.onmessage = e => {
             if (options?.onError && e.data.id === id) {
                 options.onError(e.data)
             }
@@ -86,12 +127,17 @@ class DownZip {
             messageChannel.port1.addEventListener('message', () => resolve(`${SCOPE}/download-${id}`))
             messageChannel.port1.start()
 
+            const comms = [
+                messageChannel.port2,
+                ...fetchInitChannel._port2 ? [fetchInitChannel._port2, progressChannel._port2, errorChannel._port2] : []
+            ]
+
             // Init this task in our service worker
             this.sendMessage('INITIALIZE', {
                 id,
                 files,
                 name
-            }, messageChannel.port2)
+            }, comms)
 
             // Start timeout timer
             setTimeout(reject, TIMEOUT_MS)

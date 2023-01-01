@@ -8,9 +8,40 @@ const Utils = new WorkerUtils('DownZipServiceWorker')
 const zipMap = {}
 
 // Create channels for communicating fetch init parameters, errors, etc.
-const fetchInitChannel = new BroadcastChannel('DOWNZIP_FETCH_INIT')
-const progressReportChannel = new BroadcastChannel('DOWNZIP_PROGRESS_REPORT')
-const errorReportChannel = new BroadcastChannel('DOWNZIP_ERROR_REPORT')
+let fetchInitChannel
+let progressReportChannel
+let errorReportChannel
+
+class BC {
+    #port
+    onmessage
+
+    constructor (port) {
+        this.#port = port
+        this.onmessage = null
+        this.#port.onmessage = e => {
+            if (this.onmessage) {
+                this.onmessage (e)
+            }
+        }
+    }
+
+    postMessage (msg) {
+        this.#port.postMessage(msg)
+    }
+}
+
+function createBroadcastChannel ({port, name}) {
+    if (port) {
+        return new BC(port)
+    }
+
+    try {
+        return new BroadcastChannel(name)
+    } catch (err) {
+        Utils.error(`Error creating BroadcastChannel for ${name}`)
+    }
+}
 
 const getFetchInit = async () => {
     return await new Promise(resolve => {
@@ -31,7 +62,7 @@ const reportError = (id, file, err) => {
 }
 
 // ////////// MESSAGE HANDLERS ////////// //
-const initialize = (data, ports) => {
+const initialize = (data, comms) => {
     Utils.log(`Initialize called: ${JSON.stringify(data)}`)
     const {id, files, name} = data
 
@@ -49,8 +80,13 @@ const initialize = (data, ports) => {
     }
 
     // Acknowledge reception
-    if(ports.length > 0)
-        ports[0].postMessage({command: 'ACKNOWLEDGE'})
+    if(comms.length > 0) {
+        comms[0].postMessage({command: 'ACKNOWLEDGE'})
+        fetchInitChannel = createBroadcastChannel({ port: comms[1], name: 'DOWNZIP_FETCH_INIT' })
+        progressReportChannel = createBroadcastChannel({ port: comms[2], name: 'DOWNZIP_PROGRESS_REPORT' })
+        errorReportChannel = createBroadcastChannel({ port: comms[3], name: 'DOWNZIP_ERROR_REPORT' })
+    }
+
 }
 
 // This message is here to keep the service worker from getting killed while downloading.
