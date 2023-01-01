@@ -38,10 +38,8 @@ class BC {
 function createBroadcastChannel(name) {
     try {
         const bc = new BroadcastChannel(name)
-        console.log('downzip: Using BroadcastChannel')
         return bc
     } catch (err) {
-        console.log('downzip: Using MessageChannel')
         return new BC(name)
     }
 }
