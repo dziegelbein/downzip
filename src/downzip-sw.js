@@ -64,7 +64,7 @@ const reportError = (id, file, err) => {
 // ////////// MESSAGE HANDLERS ////////// //
 const initialize = (data, comms) => {
     Utils.log(`Initialize called: ${JSON.stringify(data)}`)
-    const {id, files, name} = data
+    const {id, files, name, responseHeaders} = data
 
     // Decide whether to use zip64
     const totalSizeBig = ZipUtils.calculateSize(files)
@@ -75,11 +75,12 @@ const initialize = (data, comms) => {
     zipMap[id] = {
         files,
         name,
+        responseHeaders,
         zip: new Zip(zip64),
         sizeBig: totalSizeBig
     }
 
-    // Acknowledge reception
+    // Acknowledge reception and create other communications channels
     if(comms.length > 0) {
         comms[0].postMessage({command: 'ACKNOWLEDGE'})
         fetchInitChannel = createBroadcastChannel({ port: comms[1], name: 'DOWNZIP_FETCH_INIT' })
@@ -134,12 +135,12 @@ self.addEventListener('fetch', async (event) => {
             // Respond with the zip outputStream
             event.respondWith(new Response(
                 zipMap[id].zip.outputStream,
-                {headers: new Headers({
+                {headers: new Headers(Utils.mergeHeaders({
                     'Content-Type': 'application/octet-stream; charset=utf-8',
                     'Content-Disposition': `attachment; filename="${zipMap[id].name}.zip"`,
                     'Content-Length': zipMap[id].sizeBig  // This is an approximation, does not take into account the headers
-                })}
-            ))            
+                }, zipMap[id].responseHeaders))}
+            ))
 
             reportProgress(id, file, progFile, progFileset, progTotal, false)
 

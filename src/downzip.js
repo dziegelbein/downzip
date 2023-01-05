@@ -6,6 +6,8 @@ const SCOPE = 'downzip'
 const TIMEOUT_MS = 5000
 const KEEPALIVE_INTERVAL_MS = 5000
 
+// BC wraps a MessageChannel in a BroadcastChannel interface. It is used only when
+// BroadcastChannel is not available.
 class BC {
     #msgChannel
     #name
@@ -80,7 +82,12 @@ class DownZip {
 
     // Files array is in the following format: [{name: '', downloadUrl: '', size: 0, options = {}}, ...]
     // Available options: 
-    //   fetchInit: An async/sync function returning the init object to be used with the fetch operation used for the download
+    //   fetchInit: An async/sync function returning the init object to be used with the fetch operation used for each individual
+    //     file added to the zip archive.
+    //   responseHeaders: An object of headers to use in the zip response. This overrides/adds to the headers that downzip
+    //     sends automatically. For example, setting this to { 'content-type': 'application/zip' } will result in the response
+    //     containing a content-type header of 'application/zip' (the default is 'application/octet-stream'), with the
+    //     content-disposition and content-length headers remaining as downzip determines.
     //   onProgress: A callback that takes a progress object of the form { id, file, progFile, progFileset, progTotal, done }
     //   onError: A callback that takes an error object of the form { id, file, error }
     async downzip(id, name, files, options = {}){
@@ -134,7 +141,8 @@ class DownZip {
             this.sendMessage('INITIALIZE', {
                 id,
                 files,
-                name
+                name,
+                responseHeaders: options.responseHeaders
             }, comms)
 
             // Start timeout timer

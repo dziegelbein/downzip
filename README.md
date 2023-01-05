@@ -4,13 +4,19 @@
 
 This package is based on a fork of v2.0.1 of https://www.npmjs.com/package/downzip
 
-It adds an optional fourth parameter to the downzip method. That parameter is an object that may contain any of the 
+It adds an optional fourth parameter to the downzip method. That parameter is an object that may contain any of the
 following:
 - fetchInit: An async/sync function returning the init object to be used with the fetch operation used for the download
+    of individual files added to the zip archive
+- responseHeaders: An object of headers to use in the zip response. This overrides/adds to the headers that downzip
+    sends automatically. For example, setting this to { 'content-type': 'application/zip' } will result in the response
+    containing a content-type header of 'application/zip' (the default is 'application/octet-stream'), with the
+    content-disposition and content-length headers remaining as downzip determines.
 - onProgress: A callback that takes a progress object of the form { id, file, progFile, progFileset, progTotal, done }
 - onError: A callback that takes an error object of the form { id, file, error }
 
-For example, to set the Authorization header for each file download:
+For example, to set the Authorization header for each file download and override the default Content-Type response
+header:
 
 ```
 const downZip = new DownZip()
@@ -18,11 +24,18 @@ const url = await downZip.downzip(
       uuidv4(), // download id
       'zipfile', // name of zip file
       filesToZip, // array of files to add to zip
-      { fetchInit: () => ({ headers: { Authorization: `Bearer ${getAccessToken()}` } }) }
+      { 
+        fetchInit: () => ({ headers: { Authorization: `Bearer ${getAccessToken()}` } }),
+        responseHeaders: { 'Content-Type': 'application/zip' }
+      }
     )
 ```
 
-NOTE: fetchInit can be a simple object if its value never changes.
+NOTES: 
+1. fetchInit can be a simple object if its value never changes.
+1. The merge of responseHeaders with the default headers is case-insensitive with respect to header names, e.g.
+  passing { 'content-type': 'application/zip' } has the same result as passing { 'Content-Type': 'application/zip' }, 
+  that is, it will override the default 'Content-Type' header.
 
 ---
 
