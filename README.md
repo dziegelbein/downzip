@@ -1,5 +1,3 @@
----
-
 **IMPORTANT**
 
 This package is based on a fork of v2.0.1 of https://www.npmjs.com/package/downzip
