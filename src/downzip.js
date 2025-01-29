@@ -62,14 +62,14 @@ class DownZip {
         }).then(result => {
             Utils.log('[DownZip] Service worker registered successfully:', result)
             this.worker = result.installing || result.active
+
+            // Start keep-alive timer
+            setInterval(async () => {
+                this.sendMessage('TICK')
+            }, KEEPALIVE_INTERVAL_MS)
         }).catch(error => {
             Utils.error('[DownZip] Service workers not loaded:', error)
         })
-
-        // Start keep-alive timer
-        setInterval(async () => {
-            this.sendMessage('TICK')
-        }, KEEPALIVE_INTERVAL_MS)
     }
     
 
